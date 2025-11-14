@@ -1,57 +1,86 @@
-TARGET = stm32f303-pe15
+# Project configuration
+TARGET = stm32f303-min-test
 BUILD_DIR = build
 OBJ_DIR = $(BUILD_DIR)/obj
-INCLUDE_DIR = include
 
+# Tools
 CC = arm-none-eabi-gcc
 OBJCOPY = arm-none-eabi-objcopy
 SIZE = arm-none-eabi-size
-
-# Путь к ST-LINK Utility
 ST_LINK_CLI = "C:\Program Files (x86)\STMicroelectronics\STM32 ST-LINK Utility\ST-LINK Utility\ST-LINK_CLI.exe"
 
+# MCU configuration
 MCU = cortex-m4
-CFLAGS = -mcpu=$(MCU) -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16
-CFLAGS += -O0 -g -Wall -std=gnu11 -DSTM32F303xC -I$(INCLUDE_DIR) -I$(INCLUDE_DIR)/m-profile
-CFLAGS += -fdata-sections -ffunction-sections
+FPU = fpv4-sp-d16
 
-LDFLAGS = $(CFLAGS) -Tlinker/STM32F303VCTx_FLASH.ld
+# Compiler flags
+CFLAGS = -mcpu=$(MCU) -mthumb -mfloat-abi=hard -mfpu=$(FPU)
+CFLAGS += -O0 -ggdb3 -Wall -Wextra -Wpedantic -std=gnu11
+CFLAGS += -DSTM32F303xC
+CFLAGS += -Iinclude
+CFLAGS += -fdata-sections -ffunction-sections
+CFLAGS += -ffreestanding -fno-builtin
+
+# Linker flags
+LDFLAGS = $(CFLAGS)
+LDFLAGS += -Tlinker/STM32F303VCTx_FLASH.ld
 LDFLAGS += -Wl,--gc-sections -Wl,-Map=$(BUILD_DIR)/$(TARGET).map
+LDFLAGS += -Wl,--print-memory-usage
 LDFLAGS += --specs=nosys.specs --specs=nano.specs
 
-OBJS = $(OBJ_DIR)/main.o $(OBJ_DIR)/startup_stm32f303xc.o $(OBJ_DIR)/system_stm32f3xx.o
+# Source files
+C_SRCS = $(wildcard src/*.c)
+ASM_SRCS = $(wildcard src/*.s)
+SRCS = $(C_SRCS) $(ASM_SRCS)
 
-all: create_dirs $(BUILD_DIR)/$(TARGET).bin $(BUILD_DIR)/$(TARGET).hex
+# Object files
+OBJS = $(C_SRCS:src/%.c=$(OBJ_DIR)/%.o)
+OBJS += $(ASM_SRCS:src/%.s=$(OBJ_DIR)/%.o)
 
-# Создание директорий
-create_dirs:
-	@if not exist "$(BUILD_DIR)" mkdir "$(BUILD_DIR)"
-	@if not exist "$(OBJ_DIR)" mkdir "$(OBJ_DIR)"
+# Default target
+all: $(BUILD_DIR)/$(TARGET).hex
 
-$(BUILD_DIR)/$(TARGET).elf: $(OBJS) | create_dirs
+# Main targets
+$(BUILD_DIR)/$(TARGET).elf: $(OBJS) | $(BUILD_DIR)
 	$(CC) $(OBJS) $(LDFLAGS) -o $@
+	@echo "=== Memory usage ==="
 	$(SIZE) $@
-
+	
 $(BUILD_DIR)/$(TARGET).hex: $(BUILD_DIR)/$(TARGET).elf
 	$(OBJCOPY) -O ihex $< $@
+	@echo "Hex created: $@"
 
-$(BUILD_DIR)/$(TARGET).bin: $(BUILD_DIR)/$(TARGET).elf
-	$(OBJCOPY) -O binary $< $@
-
-$(OBJ_DIR)/main.o: src/main.c | create_dirs
+# Compilation rules
+$(OBJ_DIR)/%.o: src/%.c | $(OBJ_DIR)
+	@echo "Compiling $<"
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(OBJ_DIR)/system_stm32f3xx.o: src/system_stm32f3xx.c | create_dirs
-	$(CC) $(CFLAGS) -c $< -o $@
-	
-$(OBJ_DIR)/startup_stm32f303xc.o: src/startup_stm32f303xc.s | create_dirs
+$(OBJ_DIR)/%.o: src/%.s | $(OBJ_DIR)
+	@echo "Assembling $<"
 	$(CC) -x assembler-with-cpp $(CFLAGS) -c $< -o $@
 
-clean:
-	@if exist "$(BUILD_DIR)" rmdir /S /Q "$(BUILD_DIR)"
+# Directory creation
+$(BUILD_DIR) $(OBJ_DIR):
+	@mkdir "$@"
 
-# Прошивка HEX файла
+# Utilities
+clean:
+	@if exist "$(BUILD_DIR)" ( \
+		echo "Cleaning build directory..." && \
+		rmdir /S /Q "$(BUILD_DIR)" && \
+		echo "Clean complete" \
+	)
+
 flash: $(BUILD_DIR)/$(TARGET).hex
+	@echo "Flashing $(TARGET).hex to device..."
 	$(ST_LINK_CLI) -c SWD -P $< -V -Rst
 
-.PHONY: all clean flash create_dirs
+# Dependencies
+-include $(OBJS:.o=.d)
+
+# Generate dependencies
+$(OBJ_DIR)/%.d: src/%.c | $(OBJ_DIR)
+	@$(CC) $(CFLAGS) -MM -MT $(@:.d=.o) -MF $@ $<
+
+# Phony targets
+.PHONY: all clean flash info
