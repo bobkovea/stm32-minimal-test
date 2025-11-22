@@ -5,20 +5,22 @@
 
 void ClockInit(void)
 {	
-    RCC->AHBENR |= RCC_AHBENR_GPIOAEN | // GPIOA
-				  RCC_AHBENR_GPIOEEN | 	// GPIOE
-				  RCC_AHBENR_GPIOCEN | 	// GPIOС
-				  RCC_AHBENR_DMA1EN; 	// DMA1
+    RCC->AHBENR |= RCC_AHBENR_GPIOAEN |     // GPIOA
+					RCC_AHBENR_GPIOBEN |    // GPIOB
+					RCC_AHBENR_GPIOCEN | 	// GPIOС
+					RCC_AHBENR_GPIOEEN | 	// GPIOE
+					RCC_AHBENR_DMA1EN; 	    // DMA1
 				  
 	RCC->APB2ENR |= RCC_APB2ENR_USART1EN |   // USART1
 					RCC_APB2ENR_SPI1EN; 	 // SPI1
+					
+	RCC->APB1ENR |= RCC_APB1ENR_I2C1EN; // I2C1
        
 }
 
-// Инициализация GPIO для PE15 (источник: RM0316, разделы 8.4.1, 8.4.7)
 void GpioInit(void)
 { 
-	/*PORT A*/
+	/* PORT A */
 	
 	 // Настройка пинов SPI1: PA5-SCK, PA6-MISO, PA7-MOSI (уже подключены к L3GD20)
     GPIOA->MODER &= ~(GPIO_MODER_MODER5 | GPIO_MODER_MODER6 | GPIO_MODER_MODER7);
@@ -34,8 +36,29 @@ void GpioInit(void)
 					 
 	GPIOA->OTYPER &= ~(GPIO_OTYPER_OT_5 | GPIO_OTYPER_OT_6 | GPIO_OTYPER_OT_7); // Push-pull
     GPIOA->PUPDR &= ~(GPIO_PUPDR_PUPDR5 | GPIO_PUPDR_PUPDR6 | GPIO_PUPDR_PUPDR7); // No pull-up/pull-down 
-					 
-					 
+	
+	/* PORT B */
+	
+	 // Настройка PB6 (SCL) и PB7 (SDA) как альтернативная функция с открытым стоком
+    // Настройка PB6 - I2C1_SCL, PB7 - I2C1_SDA
+    GPIOB->MODER &= ~(GPIO_MODER_MODER6 | GPIO_MODER_MODER7);
+    GPIOB->MODER |= (2 << GPIO_MODER_MODER6_Pos) | (2 << GPIO_MODER_MODER7_Pos);
+    
+    GPIOB->OTYPER |= GPIO_OTYPER_OT_6 | GPIO_OTYPER_OT_7;  // Open-drain
+    GPIOB->AFR[0] |= (4 << GPIO_AFRL_AFRL6_Pos) | (4 << GPIO_AFRL_AFRL7_Pos);  // AF4
+
+	GPIOB->PUPDR |= (1 << GPIO_PUPDR_PUPDR6_Pos) | (1 << GPIO_PUPDR_PUPDR7_Pos);
+	
+	/* PORT C */
+	
+    // Настройка PC4 (TX) и PC5 (RX)
+    GPIOC->MODER &= ~(GPIO_MODER_MODER4_Msk | GPIO_MODER_MODER5_Msk);
+    GPIOC->MODER |= (2 << GPIO_MODER_MODER4_Pos) | (2 << GPIO_MODER_MODER5_Pos);
+    
+    // Альтернативная функция AF7 для USART1
+    GPIOC->AFR[0] &= ~(GPIO_AFRL_AFRL4_Msk | GPIO_AFRL_AFRL5_Msk);
+    GPIOC->AFR[0] |= (7 << GPIO_AFRL_AFRL4_Pos) | (7 << GPIO_AFRL_AFRL5_Pos);
+	
 	/* PORT E */
 	
 	// Настройка пина CS (PE3) как выхода - это КЛЮЧЕВОЙ момент!
@@ -45,22 +68,10 @@ void GpioInit(void)
 	
 	GPIOE->BSRR |= GPIO_BSRR_BS_3;  // PE3 high
 	
-	// PE15 - LED ouptut
+	// PE15 - LED output
     GPIOE->MODER &= ~GPIO_MODER_MODER15_Msk;
     GPIOE->MODER |= GPIO_MODER_MODER15_0;
-	
-	/* PORT C*/
-	
-    // Настройка PC4 (TX) и PC5 (RX)
-    GPIOC->MODER &= ~(GPIO_MODER_MODER4_Msk | GPIO_MODER_MODER5_Msk);
-    GPIOC->MODER |= (2 << GPIO_MODER_MODER4_Pos) | (2 << GPIO_MODER_MODER5_Pos);
-    
-    // Альтернативная функция AF7 для USART1
-    GPIOC->AFR[0] &= ~(GPIO_AFRL_AFRL4_Msk | GPIO_AFRL_AFRL5_Msk);
-    GPIOC->AFR[0] |= (7 << GPIO_AFRL_AFRL4_Pos) | (7 << GPIO_AFRL_AFRL5_Pos);
- 
 }
-
 
 void UsartInit(void)
 {
@@ -93,6 +104,23 @@ void SpiInit(void)
 				SPI_CR2_FRXTH; // FIFO reception threshold (triggers RXNE event)
 				
 	SPI1->CR1 |= SPI_CR1_SPE; // Enable SPI
+}
+
+void I2cInit(void) {
+	 // Отключение I2C перед настройкой
+    I2C1->CR1 &= ~I2C_CR1_PE;
+    
+	
+    // Настройка таймингов для 100kHz при 8MHz
+    // PRESC=1, SCLDEL=0x3, SDADEL=0x2, SCLH=0xC, SCLL=0x13
+    I2C1->TIMINGR = (1 << I2C_TIMINGR_PRESC_Pos)   |
+                    (3 << I2C_TIMINGR_SCLDEL_Pos) |
+                    (1 << I2C_TIMINGR_SDADEL_Pos) |
+                    (3 << I2C_TIMINGR_SCLH_Pos)   |
+                    (9 << I2C_TIMINGR_SCLL_Pos);
+					
+    // Включение I2C
+    I2C1->CR1 |= I2C_CR1_PE;
 }
 
 #endif // BOARDSETUPUTILS_H
