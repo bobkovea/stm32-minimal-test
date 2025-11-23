@@ -2,9 +2,21 @@
 #define BOARDSETUPUTILS_H
 
 #include "stm32f303xc.h"
+void SwitchToExternalClock()
+{
+	RCC->CR |= RCC_CR_HSEBYP | RCC_CR_HSEON;
+	while(!(RCC->CR & RCC_CR_HSERDY));
+
+    RCC->CFGR &= ~RCC_CFGR_SW;
+    RCC->CFGR |= RCC_CFGR_SW_HSE;
+	
+	while((RCC->CFGR & RCC_CFGR_SWS) != RCC_CFGR_SWS_HSE);
+}
 
 void ClockInit(void)
 {	
+	SwitchToExternalClock();
+
     RCC->AHBENR |= RCC_AHBENR_GPIOAEN |     // GPIOA
 					RCC_AHBENR_GPIOBEN |    // GPIOB
 					RCC_AHBENR_GPIOCEN | 	// GPIOС
@@ -102,17 +114,15 @@ void SpiInit(void)
 	
     SPI1->CR2 = SPI_CR2_DS_2 | SPI_CR2_DS_1 | SPI_CR2_DS_0 | // 8-bit data size
 				SPI_CR2_FRXTH; // FIFO reception threshold (triggers RXNE event)
-				
+
 	SPI1->CR1 |= SPI_CR1_SPE; // Enable SPI
 }
 
 void I2cInit(void) {
 	 // Отключение I2C перед настройкой
     I2C1->CR1 &= ~I2C_CR1_PE;
-    
 	
-    // Настройка таймингов для 100kHz при 8MHz
-    // PRESC=1, SCLDEL=0x3, SDADEL=0x2, SCLH=0xC, SCLL=0x13
+    // Настройка таймингов для 100kHz
     I2C1->TIMINGR = (1 << I2C_TIMINGR_PRESC_Pos)   |
                     (3 << I2C_TIMINGR_SCLDEL_Pos) |
                     (1 << I2C_TIMINGR_SDADEL_Pos) |
