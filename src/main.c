@@ -56,8 +56,7 @@ int main(void){
 		const uint8_t temp_c_man = (uint8_t)((uint16_t)(temp_c * 100.0) % 100);
 		
 		snprintf(buffer, sizeof(buffer), "Temp: %d.%d\r\n", temp_c_int, temp_c_man);
-
-		UART1_DMA_SendString(Get_Current_Clock_Source());
+		UART1_DMA_SendString(buffer);
 		
 		delay(100000);
 	}

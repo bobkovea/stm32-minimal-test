@@ -21,7 +21,10 @@ set(CMAKE_C_FLAGS "${CPU_FLAGS} -O0 -g -std=gnu11 -DSTM32F303xC -fdata-sections 
 set(CMAKE_CXX_FLAGS "${CPU_FLAGS} -O0 -g -std=gnu++14 -DSTM32F303xC -fdata-sections -ffunction-sections")
 set(CMAKE_ASM_FLAGS "${CPU_FLAGS} -x assembler-with-cpp")
 
-include_directories(include)
+include_directories(
+include
+include/cmsis
+)
 
 # Автоматический поиск .c файлов
 file(GLOB_RECURSE SOURCES
