@@ -2,6 +2,7 @@
 #define BOARDSETUPUTILS_H
 
 #include "stm32f303xc.h"
+
 void SwitchToExternalClock()
 {
 	RCC->CR |= RCC_CR_HSEBYP | RCC_CR_HSEON;
@@ -13,29 +14,49 @@ void SwitchToExternalClock()
 	while((RCC->CFGR & RCC_CFGR_SWS) != RCC_CFGR_SWS_HSE);
 }
 
+void SetPeripheralClock(const uint8_t enable)
+{
+	const uint32_t ahb_enr = RCC_AHBENR_GPIOAEN |     // GPIOA
+							RCC_AHBENR_GPIOBEN |    // GPIOB
+							RCC_AHBENR_GPIOCEN | 	// GPIOС
+							RCC_AHBENR_GPIOEEN | 	// GPIOE
+							RCC_AHBENR_DMA1EN; 	    // DMA1
+	
+	const uint32_t apb1_enr = RCC_APB1ENR_I2C1EN | // I2C1
+							RCC_APB1ENR_PWREN; // PWR
+							
+    const uint32_t apb2_enr = RCC_APB2ENR_USART1EN |   // USART1
+							RCC_APB2ENR_SPI1EN | 	 // SPI1
+							RCC_APB2ENR_SYSCFGEN; // SYSCFG
+							
+	if(enable)
+	{
+		RCC->AHBENR |= ahb_enr;
+		RCC->APB1ENR |= apb1_enr;
+		RCC->APB2ENR |= apb2_enr;
+
+	}
+	else
+	{
+		RCC->AHBENR &= ~ahb_enr;
+		RCC->APB1ENR &= ~apb1_enr;
+		RCC->APB2ENR &= ~apb2_enr;
+	}
+}
+
 void ClockInit(void)
 {	
 	SwitchToExternalClock();
-
-    RCC->AHBENR |= RCC_AHBENR_GPIOAEN |     // GPIOA
-					RCC_AHBENR_GPIOBEN |    // GPIOB
-					RCC_AHBENR_GPIOCEN | 	// GPIOС
-					RCC_AHBENR_GPIOEEN | 	// GPIOE
-					RCC_AHBENR_DMA1EN; 	    // DMA1
-				  
-	RCC->APB2ENR |= RCC_APB2ENR_USART1EN |   // USART1
-					RCC_APB2ENR_SPI1EN; 	 // SPI1
-					
-	RCC->APB1ENR |= RCC_APB1ENR_I2C1EN; // I2C1
-       
+	SetPeripheralClock(1);
 }
+	
 
 void GpioInit(void)
 { 
 	/* PORT A */
 	
 	 // Настройка пинов SPI1: PA5-SCK, PA6-MISO, PA7-MOSI (уже подключены к L3GD20)
-    GPIOA->MODER &= ~(GPIO_MODER_MODER5 | GPIO_MODER_MODER6 | GPIO_MODER_MODER7);
+    GPIOA->MODER &= ~(GPIO_MODER_MODER0 | GPIO_MODER_MODER5 | GPIO_MODER_MODER6 | GPIO_MODER_MODER7);
     GPIOA->MODER |= (2 << GPIO_MODER_MODER5_Pos) |  // Alternate function
                     (2 << GPIO_MODER_MODER6_Pos) |
                     (2 << GPIO_MODER_MODER7_Pos);
@@ -132,5 +153,29 @@ void I2cInit(void) {
     // Включение I2C
     I2C1->CR1 |= I2C_CR1_PE;
 }
+
+void InterruptsInit(void)
+{
+	 // Настраиваем EXTI0 на PA0
+    SYSCFG->EXTICR[0] &= ~SYSCFG_EXTICR1_EXTI0_Msk;
+    SYSCFG->EXTICR[0] |= SYSCFG_EXTICR1_EXTI0_PA;
+    
+    // Настраиваем триггер прерывания (по нарастающему фронту)
+    EXTI->RTSR |= EXTI_RTSR_TR0;   // Rising trigger
+    EXTI->FTSR &= ~EXTI_FTSR_TR0;  // Falling trigger disabled
+    
+    // Разрешаем прерывание EXTI0
+    EXTI->IMR |= EXTI_IMR_MR0;
+    
+    // Устанавливаем приоритет прерывания
+    NVIC_SetPriority(EXTI0_IRQn, 0);
+    NVIC_EnableIRQ(EXTI0_IRQn);
+}
+
+void WakeupInit(void)
+{
+	PWR->CSR |= PWR_CSR_EWUP1;  // Enable Wakeup pin (PA0)
+}
+
 
 #endif // BOARDSETUPUTILS_H

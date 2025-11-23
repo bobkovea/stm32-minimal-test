@@ -7,28 +7,31 @@
 #include "utils.h"
 #include "gyro.h"
 #include "magnet.h"
+#include "wakeup.h"
+
 
 char buffer[64];
-
 
 int main(void){
 	
     ClockInit();
+	InterruptsInit();
+	WakeupInit();
     GpioInit();
 	UsartInit();
 	SpiInit();
 	I2cInit();
-	
+
 	L3GD20_Init();
 
 	
 	//LSM303AGR_Init();
 	LSM303AGR_InitTemperature(); // Включить датчик температуры
 	
-	
+	uint8_t flag = 0;
 
-	while(1) {
-
+	while(1)
+	{
 		GPIOE->BSRR |= GPIO_BSRR_BS_15;		
 		
 		GyroData_t gyroData;
@@ -59,6 +62,13 @@ int main(void){
 		UART1_DMA_SendString(buffer);
 		
 		delay(100000);
+		
+		if(!flag)
+		{
+			flag = 1;	
+			Wakeup_EnterStopMode();
+		}
+		
+		
 	}
-
 }
