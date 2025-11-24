@@ -94,7 +94,7 @@ void GpioInit(void)
 	
 	/* PORT E */
 	
-	// Настройка пина CS (PE3) как выхода - это КЛЮЧЕВОЙ момент!
+	// Настройка пина CS (PE3) как выхода
     // На Discovery L3GD20 подключен к PE3!
     GPIOE->MODER &= ~GPIO_MODER_MODER3;
     GPIOE->MODER |= (1 << GPIO_MODER_MODER3_Pos);  // Output mode
@@ -156,25 +156,72 @@ void I2cInit(void) {
 
 void InterruptsInit(void)
 {
-	 // Настраиваем EXTI0 на PA0
+	/* EXTI0 PA0 */
+	
     SYSCFG->EXTICR[0] &= ~SYSCFG_EXTICR1_EXTI0_Msk;
     SYSCFG->EXTICR[0] |= SYSCFG_EXTICR1_EXTI0_PA;
     
-    // Настраиваем триггер прерывания (по нарастающему фронту)
-    EXTI->RTSR |= EXTI_RTSR_TR0;   // Rising trigger
-    EXTI->FTSR &= ~EXTI_FTSR_TR0;  // Falling trigger disabled
-    
-    // Разрешаем прерывание EXTI0
+    EXTI->RTSR |= EXTI_RTSR_TR0; 
     EXTI->IMR |= EXTI_IMR_MR0;
     
-    // Устанавливаем приоритет прерывания
     NVIC_SetPriority(EXTI0_IRQn, 0);
     NVIC_EnableIRQ(EXTI0_IRQn);
+	
+	/* EXTI20 RTC Wakeup */
+	
+    EXTI->RTSR |= EXTI_RTSR_TR20;  // Rising edge trigger
+	EXTI->IMR |= EXTI_IMR_MR20;    // Разрешить прерывание
+    
+    NVIC_SetPriority(RTC_WKUP_IRQn, 0);
+    NVIC_EnableIRQ(RTC_WKUP_IRQn);
 }
 
 void WakeupInit(void)
 {
 	PWR->CSR |= PWR_CSR_EWUP1;  // Enable Wakeup pin (PA0)
+}
+
+void RtcInit(void)
+{	
+	// Разрешить доступ к Backup domain
+	PWR->CR |= PWR_CR_DBP;  
+	
+	// Включить LSI (внутренний источник на 40 kHz)
+    RCC->CSR |= RCC_CSR_LSION;
+    while(!(RCC->CSR & RCC_CSR_LSIRDY));
+	
+	// Настроить RTC на тактирование от LSI
+    RCC->BDCR &= ~RCC_BDCR_RTCSEL;
+    RCC->BDCR |= RCC_BDCR_RTCSEL_LSI; 
+	
+	// Включить тактирование RTC
+    RCC->BDCR |= RCC_BDCR_RTCEN; 
+    
+	// Разблокировать настройку RTC
+    RTC->WPR = 0xCA;
+	RTC->WPR = 0x53;
+	
+	/*
+	// Настройки для режима 1 Hz
+	RTC->ISR |= RTC_ISR_INIT;
+    while (!(RTC->ISR & RTC_ISR_INITF));
+
+    RTC->PRER = (127 << RTC_PRER_PREDIV_A_Pos) | 
+                (255 << RTC_PRER_PREDIV_S_Pos);
+
+    RTC->ISR &= ~RTC_ISR_INIT;
+	*/
+	
+	RTC->CR &= ~RTC_CR_WUTE;
+    while (!(RTC->ISR & RTC_ISR_WUTWF));
+	
+	RTC->WUTR = 2500U; // 1Hz
+	
+    RTC->CR &= ~RTC_CR_WUCKSEL; // RTC_CLK = LSI_FREQ / 16 = 2500 Hz
+	
+    RTC->CR |= RTC_CR_WUTIE; // Wake-up interrupts enable
+	
+	RTC->WPR = 0xFF;
 }
 
 

@@ -21,4 +21,9 @@ void UART1_DMA_SendString(char* str) {
     UART1_DMA_Send((uint8_t*)str, len);
 }
 
+uint32_t UART1_TransferIsComplete(void)
+{
+	return (DMA1_Channel4->CNDTR == 0U);
+}
+
 #endif // UART_MY_H

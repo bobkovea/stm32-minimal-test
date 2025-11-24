@@ -16,6 +16,7 @@ int main(void){
 	
     ClockInit();
 	InterruptsInit();
+	RtcInit();
 	WakeupInit();
     GpioInit();
 	UsartInit();
@@ -44,10 +45,12 @@ int main(void){
 		gyroData.x, gyroData.y, gyroData.z);
 		
 		UART1_DMA_SendString(buffer);
+		while(!UART1_TransferIsComplete());
+			
+		Wakeup_StartRtcWakeupTimer();
+		Wakeup_EnterStopMode();
 		
-		
-		delay(100000);
-		// Выключаем PE15 (устанавливаем низкий уровень)  
+		//delay(100000);
 		GPIOE->BSRR |= GPIO_BSRR_BR_15;
 	
 		
@@ -60,15 +63,10 @@ int main(void){
 		
 		snprintf(buffer, sizeof(buffer), "Temp: %d.%d\r\n", temp_c_int, temp_c_man);
 		UART1_DMA_SendString(buffer);
+		while(!UART1_TransferIsComplete());
 		
-		delay(100000);
-		
-		if(!flag)
-		{
-			flag = 1;	
-			Wakeup_EnterStopMode();
-		}
-		
-		
+		//delay(100000)
+		Wakeup_StartRtcWakeupTimer();
+		Wakeup_EnterStopMode();
 	}
 }

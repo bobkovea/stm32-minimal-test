@@ -25,4 +25,16 @@ void Wakeup_EnterStopMode(void)
 	SetPeripheralClock(1);
 }
 
+void Wakeup_StartRtcWakeupTimer(void)
+{
+   	// Разблокировать настройку RTC
+    RTC->WPR = 0xCA;
+	RTC->WPR = 0x53;
+	
+    RTC->CR |= RTC_CR_WUTE; // Wake-up timer enable
+	while (RTC->ISR & RTC_ISR_WUTWF);
+	
+	RTC->WPR = 0xFF;
+}
+
 #endif // WAKEUP_H
