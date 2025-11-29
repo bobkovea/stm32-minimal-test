@@ -22,15 +22,13 @@ int main(void){
 	UsartInit();
 	SpiInit();
 	I2cInit();
-
+	TimersInit();
 	L3GD20_Init();
 
-	
 	//LSM303AGR_Init();
 	LSM303AGR_InitTemperature(); // Включить датчик температуры
 	
-	uint8_t flag = 0;
-
+	
 	while(1)
 	{
 		GPIOE->BSRR |= GPIO_BSRR_BS_15;		
@@ -47,16 +45,15 @@ int main(void){
 		UART1_DMA_SendString(buffer);
 		while(!UART1_TransferIsComplete());
 			
-		Wakeup_StartRtcWakeupTimer();
-		Wakeup_EnterStopMode();
+		//Wakeup_StartRtcWakeupTimer();
+		//Wakeup_EnterStopMode();
 		
-		//delay(100000);
+		delay(100000);
 		GPIOE->BSRR |= GPIO_BSRR_BR_15;
 	
 		
 		while(!LSM303AGR_TemperatureReady());
 		
-		//const int8_t temp = LSM303AGR_ReadRawTemperature();
 		const float temp_c = LSM303AGR_ReadTemperatureCelsius();
 		const uint8_t temp_c_int = (uint8_t)temp_c;
 		const uint8_t temp_c_man = (uint8_t)((uint16_t)(temp_c * 100.0) % 100);
@@ -65,8 +62,9 @@ int main(void){
 		UART1_DMA_SendString(buffer);
 		while(!UART1_TransferIsComplete());
 		
-		//delay(100000)
-		Wakeup_StartRtcWakeupTimer();
-		Wakeup_EnterStopMode();
+		delay(100000);
+		//Wakeup_StartRtcWakeupTimer();
+		//Wakeup_EnterStopMode();
+		
 	}
 }

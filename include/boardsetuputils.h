@@ -27,7 +27,8 @@ void SetPeripheralClock(const uint8_t enable)
 							
     const uint32_t apb2_enr = RCC_APB2ENR_USART1EN |   // USART1
 							RCC_APB2ENR_SPI1EN | 	 // SPI1
-							RCC_APB2ENR_SYSCFGEN; // SYSCFG
+							RCC_APB2ENR_SYSCFGEN | // SYSCFG
+							RCC_APB2ENR_TIM1EN;  // TIM1
 							
 	if(enable)
 	{
@@ -104,8 +105,13 @@ void GpioInit(void)
 	// PE15 - LED output
     GPIOE->MODER &= ~GPIO_MODER_MODER15_Msk;
     GPIOE->MODER |= GPIO_MODER_MODER15_0;
+	
+    GPIOE->MODER &= ~GPIO_MODER_MODER9;
+    GPIOE->MODER |= GPIO_MODER_MODER9_1;  // Alternate function mode
+	
+    GPIOE->AFR[1] &= ~(0xF << (4 * (9 - 8)));  // Очищаем биты для PE9
+    GPIOE->AFR[1] |= (0x2 << (4 * (9 - 8)));   // AF2 для TIM1_CH1
 }
-
 void UsartInit(void)
 {
     // Настройка UART: 115200 8N1
@@ -224,5 +230,46 @@ void RtcInit(void)
 	RTC->WPR = 0xFF;
 }
 
+#define PWM_BUFFER_SIZE 256
+volatile uint16_t pwm_buffer[PWM_BUFFER_SIZE];
+
+void TimersInit()
+{
+    for (int i = 0; i < PWM_BUFFER_SIZE; i++) {
+        // Синусоида от 0 до 255
+        pwm_buffer[i] = (uint16_t)((1.0 - cosf(i * 2 * 3.14159265f / (float)PWM_BUFFER_SIZE)) * 127.5f);
+    }
+
+    DMA1_Channel2->CPAR = (uint32_t)&(TIM1->CCR1);  // Peripheral address
+    DMA1_Channel2->CMAR = (uint32_t)pwm_buffer;     // Memory address
+    DMA1_Channel2->CNDTR = PWM_BUFFER_SIZE;                     // Number of data items
+    
+    DMA1_Channel2->CCR =
+        DMA_CCR_DIR |           // Memory to peripheral
+        DMA_CCR_CIRC |          // Circular mode
+        DMA_CCR_MINC |          // Memory increment
+        DMA_CCR_PSIZE_0 | // Peripheral size: 16bit
+        DMA_CCR_MSIZE_0 | // Memory size: 16bit
+        DMA_CCR_EN;             // Enable DMA
+		
+
+    TIM1->PSC = 800 - 1; // адекватное значение для 8МГц
+    TIM1->ARR = PWM_BUFFER_SIZE - 1;  
+    
+	TIM1->CCR1 = 0;
+	
+    TIM1->CCMR1 &= ~TIM_CCMR1_OC1M_Msk;
+    TIM1->CCMR1 |= TIM_CCMR1_OC1M_1 | TIM_CCMR1_OC1M_2 |  // PWM mode 1
+				   TIM_CCMR1_OC1PE;               // Preload enable
+    
+    TIM1->CCER |= TIM_CCER_CC1E;                  // Включить канал 1
+    TIM1->CCER &= ~TIM_CCER_CC1P;                 // Активный высокий уровень
+
+    TIM1->DIER |= TIM_DIER_CC1DE;             // DMA request enable for capture/compare 1
+	
+    TIM1->CR1 |= TIM_CR1_ARPE;                // Auto-reload preload enable
+    TIM1->BDTR |= TIM_BDTR_MOE;               // Main output enable
+	TIM1->CR1 |= TIM_CR1_CEN;                 // Counter enable
+}
 
 #endif // BOARDSETUPUTILS_H
