@@ -65,9 +65,7 @@ void GpioInit(void)
 					(2 << GPIO_MODER_MODER5_Pos) | // Alternate
                     (2 << GPIO_MODER_MODER6_Pos) | // Alternate
                     (2 << GPIO_MODER_MODER7_Pos); // Alternate
-					
-	GPIOA->PUPDR &= ~GPIO_PUPDR_PUPDR0;
-	
+						
     // Альтернативная функция 5 для SPI1
     GPIOA->AFR[0] &= ~(GPIO_AFRL_AFRL5 | GPIO_AFRL_AFRL6 | GPIO_AFRL_AFRL7);
     GPIOA->AFR[0] |= (5 << GPIO_AFRL_AFRL5_Pos) |
