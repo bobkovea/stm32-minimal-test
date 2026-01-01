@@ -8,7 +8,7 @@
 #include "gyro.h"
 #include "magnet.h"
 #include "wakeup.h"
-
+#include "adc.h"
 
 char buffer[64];
 
@@ -19,28 +19,31 @@ int main(void){
 	RtcInit();
 	WakeupInit();
     GpioInit();
+	AdcInit();
 	UsartInit();
 	SpiInit();
 	I2cInit();
 	TimersInit();
 	L3GD20_Init();
-
+	
 	//LSM303AGR_Init();
 	LSM303AGR_InitTemperature(); // Включить датчик температуры
-	
 	
 	while(1)
 	{
 		GPIOE->BSRR |= GPIO_BSRR_BS_15;		
 		
+		uint16_t adcCode = AdcRead();      
+		snprintf(buffer, sizeof(buffer), "adcCode = %d\r\n", adcCode);
+
 		GyroData_t gyroData;
 		L3GD20_ReadGyroData(&gyroData);
-		
+				
 		//float gyroResult;
 		//GyroData_To_DPS(&gyroData, &gyroResult);
 		
-		snprintf(buffer, sizeof(buffer), "x = %d\ty = %d\tz = %d\r\n", 
-		gyroData.x, gyroData.y, gyroData.z);
+		/*snprintf(buffer, sizeof(buffer), "x = %d\ty = %d\tz = %d\r\n", 
+		gyroData.x, gyroData.y, gyroData.z);*/
 		
 		UART1_DMA_SendString(buffer);
 		while(!UART1_TransferIsComplete());

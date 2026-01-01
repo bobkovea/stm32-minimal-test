@@ -2,6 +2,8 @@
 #define BOARDSETUPUTILS_H
 
 #include "stm32f303xc.h"
+#include "math.h"
+#include "utils.h"
 
 void SwitchToExternalClock()
 {
@@ -16,11 +18,12 @@ void SwitchToExternalClock()
 
 void SetPeripheralClock(const uint8_t enable)
 {
-	const uint32_t ahb_enr = RCC_AHBENR_GPIOAEN |     // GPIOA
+	const uint32_t ahb_enr = RCC_AHBENR_GPIOAEN |   // GPIOA
 							RCC_AHBENR_GPIOBEN |    // GPIOB
 							RCC_AHBENR_GPIOCEN | 	// GPIOС
 							RCC_AHBENR_GPIOEEN | 	// GPIOE
-							RCC_AHBENR_DMA1EN; 	    // DMA1
+							RCC_AHBENR_DMA1EN | 	// DMA1
+							RCC_AHBENR_ADC12EN; 	// ADC1 & ADC2
 	
 	const uint32_t apb1_enr = RCC_APB1ENR_I2C1EN | // I2C1
 							RCC_APB1ENR_PWREN; // PWR
@@ -58,10 +61,13 @@ void GpioInit(void)
 	
 	 // Настройка пинов SPI1: PA5-SCK, PA6-MISO, PA7-MOSI (уже подключены к L3GD20)
     GPIOA->MODER &= ~(GPIO_MODER_MODER0 | GPIO_MODER_MODER5 | GPIO_MODER_MODER6 | GPIO_MODER_MODER7);
-    GPIOA->MODER |= (2 << GPIO_MODER_MODER5_Pos) |  // Alternate function
-                    (2 << GPIO_MODER_MODER6_Pos) |
-                    (2 << GPIO_MODER_MODER7_Pos);
-    
+    GPIOA->MODER |= (3 << GPIO_MODER_MODER0_Pos) | // Analog
+					(2 << GPIO_MODER_MODER5_Pos) | // Alternate
+                    (2 << GPIO_MODER_MODER6_Pos) | // Alternate
+                    (2 << GPIO_MODER_MODER7_Pos); // Alternate
+					
+	GPIOA->PUPDR &= ~GPIO_PUPDR_PUPDR0;
+	
     // Альтернативная функция 5 для SPI1
     GPIOA->AFR[0] &= ~(GPIO_AFRL_AFRL5 | GPIO_AFRL_AFRL6 | GPIO_AFRL_AFRL7);
     GPIOA->AFR[0] |= (5 << GPIO_AFRL_AFRL5_Pos) |
@@ -164,6 +170,7 @@ void InterruptsInit(void)
 {
 	/* EXTI0 PA0 */
 	
+	/*
     SYSCFG->EXTICR[0] &= ~SYSCFG_EXTICR1_EXTI0_Msk;
     SYSCFG->EXTICR[0] |= SYSCFG_EXTICR1_EXTI0_PA;
     
@@ -172,6 +179,7 @@ void InterruptsInit(void)
     
     NVIC_SetPriority(EXTI0_IRQn, 0);
     NVIC_EnableIRQ(EXTI0_IRQn);
+	*/
 	
 	/* EXTI20 RTC Wakeup */
 	
@@ -184,7 +192,9 @@ void InterruptsInit(void)
 
 void WakeupInit(void)
 {
+	/*
 	PWR->CSR |= PWR_CSR_EWUP1;  // Enable Wakeup pin (PA0)
+	*/
 }
 
 void RtcInit(void)
@@ -271,5 +281,25 @@ void TimersInit()
     TIM1->BDTR |= TIM_BDTR_MOE;               // Main output enable
 	TIM1->CR1 |= TIM_CR1_CEN;                 // Counter enable
 }
+
+void AdcInit(void)
+{
+	ADC1->CR = 0; 
+	
+	ADC12_COMMON->CCR |= ADC12_CCR_CKMODE_0; // хз что это, но без этого не работает 
+	 
+	ADC1->SQR1 = ADC_SQR1_SQ1_0; // CH1 + одно преобразование в последовательности
+
+	ADC1->CR |= ADC_CR_ADVREGEN_0; // Включить регулятор
+
+	delay(100); // ожидание регулятора
+
+    ADC1->CR |= ADC_CR_ADCAL; // Запуск калибровки
+    while (ADC1->CR & ADC_CR_ADCAL); // Ожидание окончания калибровки
+	
+    ADC1->CR |= ADC_CR_ADEN;
+    while (!(ADC1->ISR & ADC_ISR_ADRDY)); // Ожидание готовности ADC
+}
+
 
 #endif // BOARDSETUPUTILS_H
