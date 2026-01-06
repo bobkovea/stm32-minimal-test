@@ -1,7 +1,13 @@
 #ifndef UART_MY_H
 #define UART_MY_H
 
+#include <stdbool.h>
 #include "stm32f303xc.h"
+
+bool UART1_TransferIsComplete(void)
+{
+	return (USART1->ISR & USART_ISR_TC);
+}
 
 // Отправка данных через DMA
 void UART1_DMA_Send(uint8_t* data, uint16_t length)
@@ -19,11 +25,7 @@ void UART1_DMA_SendString(char* str) {
     uint16_t len = 0;
     while (str[len] != '\0') len++;
     UART1_DMA_Send((uint8_t*)str, len);
-}
-
-uint32_t UART1_TransferIsComplete(void)
-{
-	return (DMA1_Channel4->CNDTR == 0U);
+	while(!UART1_TransferIsComplete());
 }
 
 #endif // UART_MY_H

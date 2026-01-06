@@ -60,8 +60,11 @@ void GpioInit(void)
 	/* PORT A */
 	
 	 // Настройка пинов SPI1: PA5-SCK, PA6-MISO, PA7-MOSI (уже подключены к L3GD20)
-    GPIOA->MODER &= ~(GPIO_MODER_MODER0 | GPIO_MODER_MODER5 | GPIO_MODER_MODER6 | GPIO_MODER_MODER7);
+    GPIOA->MODER &= ~(GPIO_MODER_MODER0 | GPIO_MODER_MODER1 | GPIO_MODER_MODER3 | GPIO_MODER_MODER5 | GPIO_MODER_MODER6 | GPIO_MODER_MODER7);
+	
     GPIOA->MODER |= (3 << GPIO_MODER_MODER0_Pos) | // Analog
+					(3 << GPIO_MODER_MODER1_Pos) | // Analog
+					(1 << GPIO_MODER_MODER3_Pos); // Output
 					(2 << GPIO_MODER_MODER5_Pos) | // Alternate
                     (2 << GPIO_MODER_MODER6_Pos) | // Alternate
                     (2 << GPIO_MODER_MODER7_Pos); // Alternate
@@ -130,7 +133,9 @@ void UsartInit(void)
 	 
     DMA1_Channel4->CPAR = (uint32_t)&(USART1->TDR);  // Периферийный адрес
     DMA1_Channel4->CCR = DMA_CCR_MINC |              // Инкремент адреса памяти
-                         DMA_CCR_DIR; 				 // Направление: память->периферия            
+                         DMA_CCR_DIR; 				 // Направление: память->периферия  
+
+	DMA1->IFCR = DMA_IFCR_CGIF4;  // Очистка всех флагов канала 4						 
 }
 
 void SpiInit(void)
@@ -286,16 +291,16 @@ void AdcInit(void)
 	
 	ADC12_COMMON->CCR |= ADC12_CCR_CKMODE_0; // хз что это, но без этого не работает 
 	 
-	ADC1->SQR1 = ADC_SQR1_SQ1_0; // CH1 + одно преобразование в последовательности
+	ADC1->SQR1 = ADC_SQR1_SQ1_1; // CH2 + одно преобразование в последовательности
 
 	ADC1->CR |= ADC_CR_ADVREGEN_0; // Включить регулятор
 
-	delay(100); // ожидание регулятора
+	delay_ms(20); // ожидание регулятора
 
     ADC1->CR |= ADC_CR_ADCAL; // Запуск калибровки
     while (ADC1->CR & ADC_CR_ADCAL); // Ожидание окончания калибровки
 	
-    ADC1->CR |= ADC_CR_ADEN;
+    ADC1->CR |= ADC_CR_ADEN; // включение ADC
     while (!(ADC1->ISR & ADC_ISR_ADRDY)); // Ожидание готовности ADC
 }
 
